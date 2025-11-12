@@ -1,0 +1,2 @@
+# Python
+ỨNG DỤNG MÔ HÌNH HỌC SÂU LSTM-CNN TRONG VIỆC TỰ ĐỘNG TẠO CHÚ THÍCH CHO ẢNH
