@@ -1,0 +1,1 @@
+{"max_length": 37, "vocab_size": 8781, "model_type": "EfficientNetB0_BiLSTM", "image_input_shape": [224, 224, 3], "feature_shape": [1280]}

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Captioning - LSTM-CNN Demo</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🖼️ Image Captioning Application</h1>
+            <p class="subtitle">Tự động tạo chú thích cho ảnh với mô hình LSTM-CNN</p>
+            <div class="tech-stack">
+                <span class="badge">InceptionV3</span>
+                <span class="badge">LSTM</span>
+                <span class="badge">Beam Search (k=3)</span>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Upload Section -->
+            <section class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <h3>Tải lên ảnh của bạn</h3>
+                    <p>Kéo thả ảnh vào đây hoặc click để chọn</p>
+                    <input type="file" id="fileInput" accept="image/jpeg,image/png,image/jpg" hidden>
+                    <button class="btn-upload" onclick="document.getElementById('fileInput').click()">
+                        Chọn ảnh
+                    </button>
+                    <p class="file-info">Hỗ trợ: JPG, PNG (Tối đa 10MB)</p>
+                </div>
+            </section>
+
+            <!-- Preview & Results Section -->
+            <section class="results-section" id="resultsSection" style="display: none;">
+                <div class="results-grid">
+                    <!-- Image Preview -->
+                    <div class="preview-card">
+                        <h3>Ảnh đầu vào</h3>
+                        <div class="image-container">
+                            <img id="previewImage" src="" alt="Preview">
+                        </div>
+                        <div class="image-info" id="imageInfo"></div>
+                    </div>
+
+                    <!-- Caption Results -->
+                    <div class="caption-card">
+                        <h3>Chú thích được tạo</h3>
+                        
+                        <!-- Loading State -->
+                        <div class="loading" id="loadingState" style="display: none;">
+                            <div class="spinner"></div>
+                            <p>Đang xử lý ảnh...</p>
+                            <p class="loading-steps" id="loadingSteps">
+                                <span class="step">✓ Tiền xử lý ảnh</span><br>
+                                <span class="step">⏳ Trích xuất đặc trưng...</span><br>
+                                <span class="step">⏳ Sinh chú thích...</span>
+                            </p>
+                        </div>
+
+                        <!-- Results -->
+                        <div class="caption-results" id="captionResults" style="display: none;">
+                            <!-- Main Caption -->
+                            <div class="main-caption">
+                                <div class="caption-icon">💬</div>
+                                <p class="caption-text" id="mainCaption"></p>
+                            </div>
+
+                            <!-- Metadata -->
+                            <div class="metadata">
+                                <span class="meta-item">
+                                    <strong>Phương pháp:</strong> 
+                                    <span id="method">Beam Search (k=3)</span>
+                                </span>
+                                <span class="meta-item">
+                                    <strong>Thời gian:</strong> 
+                                    <span id="inferenceTime">0s</span>
+                                </span>
+                            </div>
+
+                            <!-- Alternative Captions (từ Beam Search) -->
+                            <div class="alternative-captions" id="alternativeCaptions" style="display: none;">
+                                <h4>Các chú thích khác (Top 3):</h4>
+                                <ul id="altCaptionsList"></ul>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="action-buttons">
+                                <button class="btn-secondary" onclick="copyCaption()">
+                                    📋 Sao chép
+                                </button>
+                                <button class="btn-primary" onclick="resetApp()">
+                                    🔄 Thử ảnh khác
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Error State -->
+                        <div class="error-state" id="errorState" style="display: none;">
+                            <div class="error-icon">⚠️</div>
+                            <p id="errorMessage"></p>
+                            <button class="btn-secondary" onclick="resetApp()">
+                                Thử lại
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Model Info Section -->
+            <section class="info-section">
+                <h3>📊 Thông tin hệ thống</h3>
+                <div class="info-grid">
+                    <div class="info-card">
+                        <h4>CNN Encoder</h4>
+                        <p>InceptionV3 (299×299)</p>
+                        <p class="info-detail">Trích xuất đặc trưng ảnh</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>LSTM Decoder</h4>
+                        <p>512 units</p>
+                        <p class="info-detail">Sinh chuỗi chú thích</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Beam Search</h4>
+                        <p>k = 3</p>
+                        <p class="info-detail">Tối ưu chất lượng</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>Server Status</h4>
+                        <p id="serverStatus">Đang kiểm tra...</p>
+                        <p class="info-detail" id="serverDetail"></p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>💡 Đồ án môn Python - Ứng dụng mô hình LSTM-CNN trong tự động tạo chú thích cho ảnh</p>
+            <p class="footer-tech">Backend: FastAPI | Frontend: HTML/CSS/JS | Model: TensorFlow/Keras</p>
+        </footer>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

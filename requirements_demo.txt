@@ -1,0 +1,22 @@
+# ===== DEMO MODE - Minimal Dependencies =====
+# Chỉ cần 3 packages này để chạy demo (không cần model)
+fastapi==0.109.0
+uvicorn==0.27.0
+python-multipart==0.0.6
+
+# ===== PRODUCTION MODE - Full Dependencies =====
+# Uncomment các dòng dưới khi có model files
+
+# Deep Learning
+# tensorflow==2.15.0
+# keras==2.15.0
+
+# Image Processing  
+# Pillow==10.2.0
+# opencv-python==4.9.0.80
+
+# Data Processing
+# numpy==1.24.3
+
+# Utilities
+# python-dotenv==1.0.0

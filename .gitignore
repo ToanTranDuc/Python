@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Models (files quá lớn, không commit lên GitHub)
+models/*.h5
+models/*.pkl
+!models/model_metadata.json
+!models/README.md
+models/LSTM_ENetB0_BLEU*.py
+
+# Test/Debug files
+test_*.py
+check_*.py
+inspect_*.py
+*_demo_backup.py
+
+# Documentation drafts
+QUICK_START.md
+SETUP_KAGGLE_API.md
+PROJECT_STRUCTURE.txt
+.env.example
+
+# Data
+data/uploads/
+data/temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary files
+*.tmp
+temp/
+
