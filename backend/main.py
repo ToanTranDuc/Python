@@ -1,200 +1,286 @@
-"""
-FastAPI Backend - DEMO MODE (không cần model)
-Dùng mock data để test Frontend
-"""
+
+
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import uvicorn
+from pydantic import BaseModel
+import logging
 import time
-import random
-from datetime import datetime
+from pathlib import Path
+import sys
 
-# Create FastAPI app
+# Import config
+sys.path.append(str(Path(__file__).parent.parent))
+from config import API_CONFIG, CORS_CONFIG, LOGGING_CONFIG
+
+# Import các modules
+from src.model_loader import get_model_loader
+from src.image_processor import get_image_processor
+from src.caption_generator import get_caption_generator
+
+# Setup logging
+logging.basicConfig(
+    level=LOGGING_CONFIG["level"],
+    format=LOGGING_CONFIG["format"]
+)
+logger = logging.getLogger(__name__)
+
+# Initialize FastAPI app
 app = FastAPI(
-    title="Image Captioning API - DEMO",
-    description="Demo API với mock data (không cần model)",
-    version="1.0.0"
+    title=API_CONFIG["title"],
+    description=API_CONFIG["description"],
+    version=API_CONFIG["version"]
 )
 
-# Enable CORS
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=CORS_CONFIG["allow_origins"],
+    allow_credentials=CORS_CONFIG["allow_credentials"],
+    allow_methods=CORS_CONFIG["allow_methods"],
+    allow_headers=CORS_CONFIG["allow_headers"],
 )
 
-# Mock captions cho demo
-MOCK_CAPTIONS = [
-    [
-        {"text": "a dog playing on the beach", "score": 0.95},
-        {"text": "a brown dog running on sand", "score": 0.89},
-        {"text": "a happy dog enjoying the beach", "score": 0.82}
-    ],
-    [
-        {"text": "a cat sitting on a chair", "score": 0.93},
-        {"text": "a white cat resting indoors", "score": 0.87},
-        {"text": "a fluffy cat on furniture", "score": 0.81}
-    ],
-    [
-        {"text": "a person riding a bicycle", "score": 0.91},
-        {"text": "someone cycling on the road", "score": 0.85},
-        {"text": "a cyclist in the city", "score": 0.79}
-    ],
-    [
-        {"text": "a beautiful sunset over mountains", "score": 0.94},
-        {"text": "sunset with mountain silhouette", "score": 0.88},
-        {"text": "colorful sky at dusk", "score": 0.83}
-    ],
-    [
-        {"text": "a group of people at a party", "score": 0.92},
-        {"text": "friends celebrating together", "score": 0.86},
-        {"text": "people enjoying a social event", "score": 0.80}
-    ]
-]
+# Global instances - load models khi startup
+model_loader = None
+image_processor = None
+caption_generator = None
 
-@app.get("/")
-def read_root():
-    """Home endpoint"""
-    return {
-        "message": "Image Captioning API - DEMO MODE",
-        "status": "running",
-        "mode": "demo",
-        "note": "Using mock data. Upload model files to enable real predictions."
-    }
 
-@app.get("/health")
-def health_check():
-    """Health check endpoint"""
-    return {
-        "status": "healthy",
-        "mode": "demo",
-        "timestamp": datetime.now().isoformat(),
-        "model_loaded": False,
-        "message": "Demo mode - no model required"
-    }
+# Pydantic models cho request/response
+class HealthResponse(BaseModel):
+    status: str
+    message: str
+    models_loaded: bool
 
-@app.post("/caption")
-async def generate_caption(file: UploadFile = File(...)):
+
+class CaptionResponse(BaseModel):
+    success: bool
+    caption: str
+    all_captions: list = []
+    method: str
+    inference_time: float
+    message: str = ""
+
+
+# Startup event - Load models vào bộ nhớ
+@app.on_event("startup")
+async def startup_event():
     """
-    Generate caption cho ảnh upload (DEMO - dùng mock data)
+    Load tất cả models vào bộ nhớ khi khởi động server
+    Giảm thiểu độ trễ inference
     """
+    global model_loader, image_processor, caption_generator
+    
+    logger.info("=" * 70)
+    logger.info("STARTING IMAGE CAPTIONING API SERVER")
+    logger.info("=" * 70)
+    
     try:
-        # Validate file type
-        if not file.content_type.startswith('image/'):
+        # Initialize image processor
+        logger.info("Initializing Image Processor...")
+        image_processor = get_image_processor()
+        
+        # Load models
+        logger.info("Loading models into memory...")
+        model_loader = get_model_loader()
+        
+        # Initialize caption generator
+        logger.info("Initializing Caption Generator...")
+        caption_generator = get_caption_generator(model_loader)
+        
+        logger.info("=" * 70)
+        logger.info("✓ SERVER READY - All models loaded successfully!")
+        logger.info(f"✓ API running at http://{API_CONFIG['host']}:{API_CONFIG['port']}")
+        logger.info("=" * 70)
+        
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        logger.error("Server will start but models may not be available")
+
+
+# Routes
+@app.get("/", response_model=HealthResponse)
+async def root():
+    """
+    Root endpoint - Health check
+    """
+    return {
+        "status": "online",
+        "message": "Image Captioning API - LSTM-CNN Model",
+        "models_loaded": model_loader is not None
+    }
+
+
+@app.get("/health", response_model=HealthResponse)
+async def health_check():
+    """
+    Health check endpoint
+    """
+    models_loaded = all([
+        model_loader is not None,
+        image_processor is not None,
+        caption_generator is not None
+    ])
+    
+    return {
+        "status": "healthy" if models_loaded else "degraded",
+        "message": "All systems operational" if models_loaded else "Models not loaded",
+        "models_loaded": models_loaded
+    }
+
+
+@app.post("/caption", response_model=CaptionResponse)
+async def generate_caption(
+    file: UploadFile = File(...),
+    method: str = "beam_search"
+):
+    """
+    Main endpoint để generate caption cho ảnh
+    
+    Quy trình Inference Chi tiết:
+    1. Tiếp nhận Request: Nhận file ảnh qua HTTP POST
+    2. Tiền xử lý Ảnh: Resize 299x299, normalize [-1, 1]
+    3. Trích xuất Đặc trưng: CNN Encoder (InceptionV3) -> features (8x8x2048)
+    4. Giải mã Chuỗi: LSTM Decoder với Beam Search (k=3)
+    5. Phản hồi: Trả về caption dưới dạng JSON
+    
+    Args:
+        file: UploadFile - Ảnh đầu vào (JPEG/PNG)
+        method: str - 'beam_search' (default, k=3) hoặc 'greedy'
+    
+    Returns:
+        CaptionResponse với caption và metadata
+    """
+    start_time = time.time()
+    
+    logger.info("=" * 70)
+    logger.info(f"NEW REQUEST: Generate caption for {file.filename}")
+    logger.info("=" * 70)
+    
+    # Validate models loaded
+    if not all([model_loader, image_processor, caption_generator]):
+        raise HTTPException(
+            status_code=503,
+            detail="Models not loaded. Please try again later."
+        )
+    
+    # Validate file type
+    if file.content_type not in API_CONFIG["allowed_image_types"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {API_CONFIG['allowed_image_types']}"
+        )
+    
+    try:
+        # Step 1: Tiếp nhận Request
+        logger.info(f"Step 1: Receiving image - {file.filename} ({file.content_type})")
+        image_bytes = await file.read()
+        file_size_mb = len(image_bytes) / (1024 * 1024)
+        
+        if file_size_mb > API_CONFIG["max_image_size_mb"]:
             raise HTTPException(
                 status_code=400,
-                detail="File must be an image (jpg, png, etc.)"
+                detail=f"File too large. Max size: {API_CONFIG['max_image_size_mb']}MB"
             )
         
-        # Simulate processing time
-        start_time = time.time()
-        time.sleep(random.uniform(0.5, 1.5))  # Giả lập xử lý
+        logger.info(f"Image size: {file_size_mb:.2f} MB")
         
-        # Random mock caption
-        captions = random.choice(MOCK_CAPTIONS)
+        # Step 2: Tiền xử lý Ảnh
+        logger.info("Step 2: Preprocessing image (resize 299x299, normalize)")
+        preprocessed_image = image_processor.preprocess_from_bytes(image_bytes)
+        logger.info(f"Preprocessed shape: {preprocessed_image.shape}")
         
-        processing_time = time.time() - start_time
+        # Step 3 + 4: Trích xuất đặc trưng và Giải mã với Beam Search
+        logger.info(f"Step 3-4: Feature extraction + LSTM decoding (method: {method})")
+        result = caption_generator.generate_caption(
+            preprocessed_image,
+            method=method
+        )
         
-        return JSONResponse(content={
+        # Step 5: Phản hồi
+        inference_time = time.time() - start_time
+        logger.info(f"Step 5: Response generated in {inference_time:.2f}s")
+        logger.info(f"Generated caption: '{result['caption']}'")
+        logger.info("=" * 70)
+        
+        return {
             "success": True,
-            "captions": captions,
-            "processing_time": round(processing_time, 2),
-            "image_name": file.filename,
-            "mode": "demo",
-            "note": "These are demo captions. Add model files for real predictions."
-        })
+            "caption": result['caption'],
+            "all_captions": result.get('all_captions', []),
+            "method": result['method'],
+            "inference_time": round(inference_time, 3),
+            "message": "Caption generated successfully"
+        }
         
-    except HTTPException:
-        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+        logger.error(f"Error processing request: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating caption: {str(e)}"
+        )
+
 
 @app.post("/caption/batch")
 async def generate_captions_batch(files: list[UploadFile] = File(...)):
     """
-    Generate captions cho nhiều ảnh (DEMO)
+    Batch processing - Generate captions cho nhiều ảnh
+    
+    Args:
+        files: List of UploadFile
+    
+    Returns:
+        List of CaptionResponse
     """
-    if len(files) > 10:
-        raise HTTPException(
-            status_code=400,
-            detail="Maximum 10 images per request"
-        )
+    logger.info(f"Batch request: {len(files)} images")
     
     results = []
     for file in files:
         try:
-            # Validate
-            if not file.content_type.startswith('image/'):
-                continue
-            
-            # Mock caption
-            captions = random.choice(MOCK_CAPTIONS)
-            
+            result = await generate_caption(file)
+            results.append(result)
+        except Exception as e:
             results.append({
-                "filename": file.filename,
-                "success": True,
-                "captions": captions
-            })
-        except:
-            results.append({
-                "filename": file.filename,
                 "success": False,
-                "error": "Processing failed"
+                "caption": "",
+                "message": str(e),
+                "inference_time": 0
             })
     
-    return JSONResponse(content={
-        "success": True,
-        "total": len(files),
-        "processed": len(results),
-        "results": results,
-        "mode": "demo"
-    })
+    return {"results": results, "total": len(files)}
+
 
 @app.get("/models/info")
-def get_model_info():
-    """Thông tin về model (DEMO)"""
+async def get_model_info():
+    """
+    Get thông tin về models đang được load
+    """
+    if not model_loader:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    models = model_loader.get_models()
+    
     return {
-        "mode": "demo",
-        "model_loaded": False,
-        "message": "Demo mode - using mock captions",
-        "instructions": {
-            "step_1": "Download model files from Kaggle",
-            "step_2": "Place in models/ folder: best_model_captioning.h5, tokenizer.pkl, model_metadata.json",
-            "step_3": "Replace backend/main.py with production version",
-            "step_4": "Restart server"
-        },
-        "demo_info": {
-            "available_mock_captions": len(MOCK_CAPTIONS),
-            "features": [
-                "Image upload validation",
-                "Random caption selection",
-                "Simulated processing time",
-                "Batch processing support"
-            ]
-        }
+        "encoder_loaded": models['encoder'] is not None,
+        "decoder_loaded": models['decoder'] is not None,
+        "vocab_size": len(models['word_to_idx']) if models['word_to_idx'] else 0,
+        "max_length": models['max_length'],
+        "image_size": image_processor.image_size if image_processor else None,
+        "beam_width": caption_generator.beam_width if caption_generator else None
     }
 
+
+# Main entry point
 if __name__ == "__main__":
-    print("=" * 70)
-    print("  🚀 IMAGE CAPTIONING API - DEMO MODE")
-    print("=" * 70)
-    print()
-    print("  ⚠️  Running in DEMO mode with mock data")
-    print("  📝 Captions are randomly generated for testing")
-    print()
-    print("  🌐 API URL: http://localhost:8000")
-    print("  📚 API Docs: http://localhost:8000/docs")
-    print()
-    print("  💡 To enable real predictions:")
-    print("     1. Download model files from Kaggle")
-    print("     2. Place in models/ folder")
-    print("     3. Use backend/main_production.py")
-    print()
-    print("=" * 70)
-    print()
+    import uvicorn
     
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(
+        "main:app",
+        host=API_CONFIG["host"],
+        port=API_CONFIG["port"],
+        reload=True,  # Auto-reload khi code thay đổi (dev only)
+        log_level="info"
+    )

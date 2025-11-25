@@ -82,8 +82,8 @@ class CaptionGenerator:
                 # Input: [features, sequence]
                 predictions = self.decoder.predict([features, sequence], verbose=0)
                 
-                # Get word with highest probability
-                predicted_idx = np.argmax(predictions[0, len(caption)-1, :])
+                # Get word with highest probability (model outputs [batch, vocab])
+                predicted_idx = np.argmax(predictions[0, :])
                 
                 # Convert index to word
                 predicted_word = self.idx_to_word.get(predicted_idx, '<unk>')
@@ -121,6 +121,8 @@ class CaptionGenerator:
         try:
             # Initialize với <start> token
             start_idx = self.word_to_idx.get(self.start_token, 1)
+            logger.info(f"Start token: '{self.start_token}' -> idx={start_idx}")
+            logger.info(f"End token: '{self.end_token}' -> idx={self.word_to_idx.get(self.end_token, 2)}")
             
             # Beam: list of (sequence, score)
             beams = [([start_idx], 0.0)]
@@ -140,10 +142,20 @@ class CaptionGenerator:
                     
                     # Predict next word probabilities
                     predictions = self.decoder.predict([features, padded_seq], verbose=0)
-                    word_probs = predictions[0, len(sequence)-1, :]
+                    # Model outputs [batch, vocab] not [batch, seq, vocab]
+                    word_probs = predictions[0, :]
                     
                     # Get top k words
                     top_k_indices = np.argsort(word_probs)[-self.beam_width:]
+                    
+                    # Debug: show top predictions on first step
+                    if step == 0 and len(sequence) == 1:
+                        top_5_indices = np.argsort(word_probs)[-5:][::-1]
+                        logger.info(f"Top 5 predictions after start token:")
+                        for i, idx in enumerate(top_5_indices):
+                            word = self.idx_to_word.get(idx, f'<idx_{idx}>')
+                            prob = word_probs[idx]
+                            logger.info(f"  {i+1}. '{word}' (idx={idx}, prob={prob:.4f})")
                     
                     # Expand beam
                     for idx in top_k_indices:
@@ -169,10 +181,14 @@ class CaptionGenerator:
             # Chọn best sequence
             best_sequence, best_score = beams[0]
             
+            logger.info(f"Best sequence indices: {best_sequence}")
+            logger.info(f"Best sequence length: {len(best_sequence)}")
+            
             # Convert indices to words (skip <start> và <end>)
             caption_words = []
             for idx in best_sequence[1:]:
                 word = self.idx_to_word.get(idx, '<unk>')
+                logger.info(f"  idx={idx} -> word='{word}'")
                 if word == self.end_token:
                     break
                 caption_words.append(word)

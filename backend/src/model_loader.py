@@ -85,8 +85,13 @@ class ModelLoader:
         
         try:
             if Path(decoder_path).exists():
-                self.decoder = load_model(decoder_path)
-                logger.info(f"Loaded LSTM decoder successfully")
+                # Load model directly - no custom objects needed with no_mask version
+                self.decoder = tf.keras.models.load_model(
+                    decoder_path,
+                    compile=False
+                )
+                
+                logger.info(f"✓ LSTM decoder loaded successfully")
                 logger.info(f"Decoder input shapes: {[inp.shape for inp in self.decoder.inputs]}")
                 return self.decoder
             else:
@@ -112,7 +117,19 @@ class ModelLoader:
         
         try:
             if Path(model_path).exists():
-                self.full_model = load_model(model_path)
+                # Load with safe_mode=False to skip unknown layers/ops
+                try:
+                    self.full_model = tf.keras.models.load_model(
+                        model_path,
+                        compile=False,
+                        safe_mode=False
+                    )
+                except Exception as e:
+                    logger.warning(f"Safe mode loading failed: {e}")
+                    logger.info("Trying legacy loading method...")
+                    # Fallback: try loading without safe_mode
+                    self.full_model = load_model(model_path, compile=False)
+                    
                 logger.info("Loaded full model successfully")
                 return self.full_model
             else:

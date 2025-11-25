@@ -21,8 +21,8 @@ MODEL_CONFIG = {
     "dropout_rate": 0.5,
     
     # Vocabulary (will be determined from tokenizer.pkl)
-    "max_length": 40,  # Will be auto-detected from tokenizer
-    "vocab_size": 10000,  # Will be auto-detected from tokenizer
+    "max_length": 37,  # From model_metadata.json
+    "vocab_size": 8781,  # From model_metadata.json
     
     # Special tokens (matches your training)
     "start_token": "startseq",  # Changed from <start>
@@ -40,10 +40,10 @@ BEAM_SEARCH_CONFIG = {
 # Model file paths
 MODEL_FILES = {
     "encoder": MODELS_DIR / "encoder_model.h5",
-    "decoder": MODELS_DIR / "decoder_model.h5",
-    "full_model": MODELS_DIR / "lstm_cnn_model.h5",
+    "decoder": MODELS_DIR / "best_model_captioning_no_mask.h5",  # Updated to no_mask version
+    "full_model": MODELS_DIR / "best_model_captioning_no_mask.h5",
     "tokenizer": MODELS_DIR / "tokenizer.pkl",
-    "feature_extractor": MODELS_DIR / "feature_extractor.h5",
+    "feature_extractor": MODELS_DIR / "efficientnet_encoder.h5",
 }
 
 # API configurations
