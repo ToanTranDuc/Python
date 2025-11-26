@@ -44,10 +44,7 @@ env/
 logs/
 *.log
 
-# Models (files quá lớn, không commit lên GitHub)
-models/*.h5
-models/*.pkl
-!models/model_metadata.json
+
 !models/README.md
 models/LSTM_ENetB0_BLEU*.py
 

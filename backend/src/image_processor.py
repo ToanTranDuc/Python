@@ -82,8 +82,8 @@ class ImageProcessor:
     
     def normalize_image(self, image_array):
         """
-        Normalize pixel values theo chuẩn của EfficientNetB0
-        EfficientNet: uses ImageNet normalization
+        Normalize pixel values using EfficientNet's preprocess_input
+        This ensures EXACT same preprocessing as during training
         
         Args:
             image_array: numpy array (H, W, 3) với giá trị [0, 255]
@@ -92,23 +92,19 @@ class ImageProcessor:
             numpy array: Ảnh đã normalize
         """
         try:
-            if self.normalization_type == "inception" or self.normalization_type == "efficientnet":
-                # EfficientNet: Chuẩn hóa ImageNet (giống Inception)
-                # Scale to [0, 1] then normalize with ImageNet mean/std
-                normalized = image_array / 255.0
-                # ImageNet mean
-                mean = np.array([0.485, 0.456, 0.406])
-                std = np.array([0.229, 0.224, 0.225])
-                normalized = (normalized - mean) / std
-            elif self.normalization_type == "vgg":
-                # VGG: subtract ImageNet mean
-                mean = np.array([123.68, 116.779, 103.939])
-                normalized = image_array - mean
-            else:
-                # Standard: scale to [0, 1]
-                normalized = image_array / 255.0
+            # Use EfficientNet's official preprocessing
+            from tensorflow.keras.applications.efficientnet import preprocess_input
             
-            logger.debug(f"Normalized image using {self.normalization_type} method")
+            # preprocess_input expects (batch, height, width, channels)
+            # If shape is (H, W, 3), add batch dimension temporarily
+            if len(image_array.shape) == 3:
+                batched = np.expand_dims(image_array, axis=0)
+                normalized = preprocess_input(batched)
+                normalized = normalized[0]  # Remove batch dimension
+            else:
+                normalized = preprocess_input(image_array)
+            
+            logger.debug(f"Normalized image using EfficientNet preprocess_input")
             logger.debug(f"Pixel range: [{normalized.min():.2f}, {normalized.max():.2f}]")
             return normalized
             

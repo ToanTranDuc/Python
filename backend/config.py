@@ -40,8 +40,8 @@ BEAM_SEARCH_CONFIG = {
 # Model file paths
 MODEL_FILES = {
     "encoder": MODELS_DIR / "encoder_model.h5",
-    "decoder": MODELS_DIR / "best_model_captioning_no_mask.h5",  # Updated to no_mask version
-    "full_model": MODELS_DIR / "best_model_captioning_no_mask.h5",
+    "decoder": MODELS_DIR / "best_model_captioning.h5",  # No-mask version (retrained)
+    "full_model": MODELS_DIR / "best_model_captioning.h5",
     "tokenizer": MODELS_DIR / "tokenizer.pkl",
     "feature_extractor": MODELS_DIR / "efficientnet_encoder.h5",
 }
